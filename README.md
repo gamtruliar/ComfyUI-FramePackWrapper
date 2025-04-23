@@ -11,6 +11,9 @@ https://github.com/user-attachments/assets/23e777e5-dd49-444f-bccf-69b4d00625a2
 
 https://github.com/user-attachments/assets/dbc4444e-5e6d-41ad-b1ff-801f27ca86cf
 
+## Cascade Sampler
+<video src="images/framepack-cascade2.mp4" controls width="800" height="500"></video>
+
 ## Feature
  - Set end frame
  - Assign weighted keyframes
