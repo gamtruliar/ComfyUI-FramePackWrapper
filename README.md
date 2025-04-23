@@ -14,8 +14,8 @@ In addition to the original by kijai, several features have been added.
  - [EasyWanVideo](https://github.com/Zuntan03/EasyWanVideo) allows you to easily set up the necessary ComfyUI environment and model files for video generation.
  - ComfyUI を使い慣れている方は custom_nodes フォルダにこのリポジトリをチェックアウトして利用してください
  - If you're already familiar with ComfyUI, you can simply check out this repository into your custom_nodes folder and start using it.
- - example_workflows にサンプルのワークフローが含まれていますので, そちらを参考にしてください
- - Sample workflows are included in example_workflows, so please refer to them.
+ - [example_workflows](./example_workflows) にサンプルのワークフローが含まれていますので, そちらを参考にしてください
+ - Sample workflows are included in [example_workflows](./example_workflows), so please refer to them.
  
 ## Start - End
 https://github.com/user-attachments/assets/d4af1e9b-904f-41aa-8a00-4306ed4ff4b0
