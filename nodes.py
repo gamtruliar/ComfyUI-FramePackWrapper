@@ -25,6 +25,7 @@ from .diffusers_helper.memory import DynamicSwapInstaller, move_model_to_device_
 from .diffusers_helper.pipelines.k_diffusion_hunyuan import sample_hunyuan
 from .diffusers_helper.utils import crop_or_pad_yield_mask
 from .diffusers_helper.bucket_tools import find_nearest_bucket
+from .cascade_node import FramePackCascadeSampler
 
 class HyVideoModel(comfy.model_base.BaseModel):
     def __init__(self, *args, **kwargs):
@@ -827,6 +828,7 @@ NODE_CLASS_MAPPINGS = {
     "FramePackFindNearestBucket": FramePackFindNearestBucket,
     "LoadFramePackModel": LoadFramePackModel,
     "TimestampPromptParser": TimestampPromptParser,
+    "FramePackCascadeSampler": FramePackCascadeSampler,
     }
 NODE_DISPLAY_NAME_MAPPINGS = {
     "DownloadAndLoadFramePackModel": "(Down)Load FramePackModel",
@@ -837,5 +839,6 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "FramePackFindNearestBucket": "Find Nearest Bucket",
     "LoadFramePackModel": "Load FramePackModel",
     "TimestampPromptParser": "Timestamp Prompt Parser",
+    "FramePackCascadeSampler": "FramePackCascadeSampler",
     }
 
