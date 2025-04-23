@@ -3,13 +3,31 @@ Original repository (kijai): https://github.com/kijai/ComfyUI-FramePackWrapper**
 
 ![screenshot](images/screenshot-01.png)
 
-## Start - End test
-https://github.com/user-attachments/assets/d4af1e9b-904f-41aa-8a00-4306ed4ff4b0
+## Abstract
+ - FramePack を ComfyUI で利用するためのカスタムノードです.
+  kijai 氏のオリジナルに加え, いくつかの機能を追加しています.
+ - This is a custom node for using FramePack in ComfyUI.
+In addition to the original by kijai, several features have been added.
 
-## Keyframe test
+## How to use
+ - [EasyWanVideo](https://github.com/Zuntan03/EasyWanVideo) を利用することで必要な ComfyUI 環境や動画作成に必要なモデルデータを簡単にセットアップすることができます
+ - [EasyWanVideo](https://github.com/Zuntan03/EasyWanVideo) allows you to easily set up the necessary ComfyUI environment and model files for video generation.
+ - ComfyUI を使い慣れている方は custom_nodes フォルダにこのリポジトリをチェックアウトして利用してください
+ - If you're already familiar with ComfyUI, you can simply check out this repository into your custom_nodes folder and start using it.
+ - example_workflows にサンプルのワークフローが含まれていますので, そちらを参考にしてください
+ - Sample workflows are included in example_workflows, so please refer to them.
+ 
+## Start - End
+https://github.com/user-attachments/assets/d4af1e9b-904f-41aa-8a00-4306ed4ff4b0
+ - 開始画像に加えて, 終了画像を指定することができます
+ - In addition to the start image, you can specify an end image.
+
+## Keyframe
 https://github.com/user-attachments/assets/23e777e5-dd49-444f-bccf-69b4d00625a2
 
 https://github.com/user-attachments/assets/dbc4444e-5e6d-41ad-b1ff-801f27ca86cf
+ - キーフレームを指定することで, 画像の変化を制御することができます
+ - By specifying keyframes, you can control the changes in the image.
 
 ## Cascade Sampler
 https://github.com/user-attachments/assets/7491220b-49b5-4cfe-984d-ea7f71a55610
@@ -19,6 +37,9 @@ From left to right:
  - 2: Split generation for 1 section
  - 3: Split generation for 2 sections
  - 4: Final result generated with 3 samplers.
+
+ - 動画を段階的に生成することができます. 気に入った前段の生成結果が得られたら、その続きを生成することができます
+ - You can generate a video in stages. If you are satisfied with the previous stage, you can generate the next stage.
 
 ## Feature
  - Set end frame
