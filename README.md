@@ -15,6 +15,7 @@ https://github.com/user-attachments/assets/dbc4444e-5e6d-41ad-b1ff-801f27ca86cf
  - Set end frame
  - Assign weighted keyframes
  - Use different prompts per section
+ - FramePackCascadeSampler can be cascaded for multi-stage processing
 
 # ComfyUI Wrapper for [FramePack by lllyasviel](https://lllyasviel.github.io/frame_pack_gitpage/)
 
