@@ -255,8 +255,6 @@ class FramePackCascadeSampler:
             clean_latent_indices = torch.cat([clean_latent_indices_pre, clean_latent_indices_post], dim=1)
 
             # clean_latents_pre を keyframes からセクションごとに取得。なければ start_latent
-            current_keyframe = start_latent.to(history_latents)
-            # --- キーフレーム選択・weightロジック（先頭区間の特別扱いを追加） ---
             total_sections = len(latent_paddings)
             forward_section_no = total_sections - 1 - section_no
             current_keyframe = start_latent.to(history_latents)
