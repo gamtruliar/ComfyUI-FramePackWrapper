@@ -27,6 +27,8 @@ from .diffusers_helper.utils import crop_or_pad_yield_mask
 from .diffusers_helper.bucket_tools import find_nearest_bucket
 from .cascade_node import FramePackCascadeSampler
 
+from .diffusers_helper.lora import create_arch_network_from_weights
+
 class HyVideoModel(comfy.model_base.BaseModel):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -173,8 +175,9 @@ class LoadFramePackModel:
                     "sdpa",
                     "flash_attn",
                     "sageattn",
-                    ], {"default": "sdpa"}),
+                ], {"default": "sdpa"}),
                 "compile_args": ("FRAMEPACKCOMPILEARGS", ),
+                "lora": ("HYVIDLORA", {"default": None}),
             }
         }
 
@@ -184,7 +187,7 @@ class LoadFramePackModel:
     CATEGORY = "FramePackWrapper"
 
     def loadmodel(self, model, base_precision, quantization,
-                  compile_args=None, attention_mode="sdpa"):
+                  compile_args=None, attention_mode="sdpa", lora=None):
         
         base_dtype = {"fp8_e4m3fn": torch.float8_e4m3fn, "fp8_e4m3fn_fast": torch.float8_e4m3fn, "bf16": torch.bfloat16, "fp16": torch.float16, "fp16_fast": torch.float16, "fp32": torch.float32}[base_precision]
 
@@ -194,6 +197,7 @@ class LoadFramePackModel:
         model_path = folder_paths.get_full_path_or_raise("diffusion_models", model)
         model_config_path = os.path.join(script_directory, "transformer_config.json")
         import json
+        from safetensors.torch import load_file as load_safetensors
         with open(model_config_path, "r") as f:
             config = json.load(f)
         sd = load_torch_file(model_path, device=offload_device, safe_load=True)
@@ -210,13 +214,37 @@ class LoadFramePackModel:
             dtype = base_dtype
         print("Using accelerate to load and assign model weights to device...")
         param_count = sum(1 for _ in transformer.named_parameters())
-        for name, param in tqdm(transformer.named_parameters(), 
-                desc=f"Loading transformer parameters to {offload_device}", 
+        for name, param in tqdm(transformer.named_parameters(),
+                desc=f"Loading transformer parameters to {offload_device}",
                 total=param_count,
                 leave=True):
             dtype_to_use = base_dtype if any(keyword in name for keyword in params_to_keep) else dtype
-   
+    
             set_module_tensor_to_device(transformer, name, device=offload_device, dtype=dtype_to_use, value=sd[name])
+
+        # musubi tuner LoRA適用処理
+        if lora is not None:
+            from safetensors.torch import load_file as load_safetensors
+            for l in lora:
+                lora_path = l["path"]
+                lora_strength = l["strength"]
+                lora_name = l.get("name", lora_path)
+                print(f"Loading LoRA: {lora_name} with strength: {lora_strength}")
+                lora_sd = load_safetensors(lora_path)
+                is_musubi = any(k.startswith("lora_unet") for k in lora_sd.keys())
+                required_keys = ["lora_down.weight", "lora_up.weight"]
+                has_required = any(any(req in k for req in required_keys) for k in lora_sd.keys())
+                if not is_musubi or not has_required:
+                    print(f"[ERROR] LoRA {lora_name} is not in musubi tuner format. Required keys like 'lora_unet.*.lora_down.weight' or 'lora_unet.*.lora_up.weight' are missing. Keys found: {list(lora_sd.keys())}")
+                else:
+                    try:
+                        lora_network = create_arch_network_from_weights(
+                            lora_strength, lora_sd, text_encoders=None, unet=transformer, for_inference=True
+                        )
+                        lora_network.merge_to(None, transformer, lora_sd, dtype=None, device=offload_device, non_blocking=True)
+                        print(f"LoRA {lora_name} merged with strength {lora_strength} (musubi tuner compatible)")
+                    except Exception as e:
+                        print(f"[ERROR] Failed to apply LoRA {lora_name}: {e}")
 
         if quantization == "fp8_e4m3fn_fast":
             from .fp8_optimization import convert_fp8_linear

@@ -420,6 +420,24 @@ class FramePackCascadeSampler:
 
             if is_last_section:
                 break
+        # forループ終了
+
+        # バイパス: 既に全セクション分生成済みの場合は即return
+        if history_latents.shape[2] >= total_latent_sections:
+            print(f"[FramePackSampler] bypass: all sections already generated (history_latents.shape={history_latents.shape})")
+            real_history_latents = history_latents[:, :, :total_latent_sections, :, :]
+            next_section_start = section_start + section_count
+            return (
+                {"samples": real_history_latents / vae_scaling_factor},
+                model,
+                positive,
+                negative,
+                image_embeds,
+                original_start_latent,
+                {"samples": history_latents},
+                total_second_length,
+                next_section_start,
+            )
 
         transformer.to(offload_device)
         mm.soft_empty_cache()
