@@ -1,11 +1,14 @@
-# LoRA network module: musubi tuner準拠
+# LoRA network module: FramePack専用（musubi tuner準拠）
 import math
 import re
 from typing import Dict, List, Optional, Type, Union
 import torch
 import torch.nn as nn
 
-HUNYUAN_TARGET_REPLACE_MODULES = ["MMDoubleStreamBlock", "MMSingleStreamBlock"]
+FRAMEPACK_TARGET_REPLACE_MODULES = [
+    "HunyuanVideoTransformerBlock",
+    "HunyuanVideoSingleTransformerBlock",
+]
 
 class LoRAModule(torch.nn.Module):
     def __init__(
@@ -150,7 +153,7 @@ def create_arch_network_from_weights(
     **kwargs,
 ):
     return create_network_from_weights(
-        HUNYUAN_TARGET_REPLACE_MODULES, multiplier, weights_sd, text_encoders, unet, for_inference, **kwargs
+        FRAMEPACK_TARGET_REPLACE_MODULES, multiplier, weights_sd, text_encoders, unet, for_inference, **kwargs
     )
 
 def create_network_from_weights(
