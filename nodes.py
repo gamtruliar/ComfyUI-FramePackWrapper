@@ -203,15 +203,11 @@ class LoadFramePackModel:
         sd = load_torch_file(model_path, device=offload_device, safe_load=True)
         
         with init_empty_weights():
-            transformer = HunyuanVideoTransformer3DModelPacked(**config)
+            transformer = HunyuanVideoTransformer3DModelPacked(**config, attention_mode=attention_mode)
 
         params_to_keep = {"norm", "bias", "time_in", "vector_in", "guidance_in", "txt_in", "img_in"}
-        if quantization == "fp8_e4m3fn" or quantization == "fp8_e4m3fn_fast" or quantization == "fp8_scaled":
-            dtype = torch.float8_e4m3fn
-        elif quantization == "fp8_e5m2":
-            dtype = torch.float8_e5m2
-        else:
-            dtype = base_dtype
+        # dtypeはLoRA適用まではbase_dtypeで統一
+        dtype = base_dtype
         print("Using accelerate to load and assign model weights to device...")
         param_count = sum(1 for _ in transformer.named_parameters())
         for name, param in tqdm(transformer.named_parameters(),
@@ -219,7 +215,6 @@ class LoadFramePackModel:
                 total=param_count,
                 leave=True):
             dtype_to_use = base_dtype if any(keyword in name for keyword in params_to_keep) else dtype
-    
             set_module_tensor_to_device(transformer, name, device=offload_device, dtype=dtype_to_use, value=sd[name])
 
         # musubi tuner LoRA適用処理
@@ -238,20 +233,22 @@ class LoadFramePackModel:
                     print(f"[ERROR] LoRA {lora_name} is not in musubi tuner format. Required keys like 'lora_unet.*.lora_down.weight' or 'lora_unet.*.lora_up.weight' are missing. Keys found: {list(lora_sd.keys())}")
                 else:
                     try:
-                        # musubi-tuner本家と同様にexclude_patternsへ".*(norm).*"を追加
                         lora_network = create_arch_network_from_weights(
                             lora_strength, lora_sd, text_encoders=None, unet=transformer, for_inference=True,
                             exclude_patterns=[r".*(norm).*"]
                         )
-                        lora_network.merge_to(None, transformer, lora_sd, dtype=None, device=offload_device, non_blocking=True)
+                        lora_network.merge_to(None, transformer, lora_sd, dtype=base_dtype, device=offload_device, non_blocking=True)
                         print(f"LoRA {lora_name} merged with strength {lora_strength} (musubi tuner compatible)")
                     except Exception as e:
                         print(f"[ERROR] Failed to apply LoRA {lora_name}: {e}")
 
-        if quantization == "fp8_e4m3fn_fast":
-            from .fp8_optimization import convert_fp8_linear
-            convert_fp8_linear(transformer, base_dtype, params_to_keep=params_to_keep)
-      
+        if quantization == "fp8_e4m3fn" or quantization == "fp8_e4m3fn_fast" or quantization == "fp8_scaled":
+            transformer = transformer.to(torch.float8_e4m3fn)
+            if quantization == "fp8_e4m3fn_fast":
+                from .fp8_optimization import convert_fp8_linear
+                convert_fp8_linear(transformer, base_dtype, params_to_keep=params_to_keep)
+        elif quantization == "fp8_e5m2":
+            transformer = transformer.to(torch.float8_e5m2)
 
         DynamicSwapInstaller.install_model(transformer, device=device)
 
@@ -598,6 +595,8 @@ class FramePackSampler:
                 else:
                     # Calculate windows that distribute more evenly across the sequence
                     # This normalizes the padding values to create appropriate spacing
+                    # One can try to remove below trick and just
+                    # use `latent_paddings = list(reversed(range(total_latent_sections)))` to compare
                     if max_padding > 0:  # Avoid division by zero
                         progress = (max_padding - latent_padding) / max_padding
                         start_idx = int(progress * max(0, total_length - latent_window_size))
