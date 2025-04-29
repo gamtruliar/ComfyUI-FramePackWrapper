@@ -238,8 +238,10 @@ class LoadFramePackModel:
                     print(f"[ERROR] LoRA {lora_name} is not in musubi tuner format. Required keys like 'lora_unet.*.lora_down.weight' or 'lora_unet.*.lora_up.weight' are missing. Keys found: {list(lora_sd.keys())}")
                 else:
                     try:
+                        # musubi-tuner本家と同様にexclude_patternsへ".*(norm).*"を追加
                         lora_network = create_arch_network_from_weights(
-                            lora_strength, lora_sd, text_encoders=None, unet=transformer, for_inference=True
+                            lora_strength, lora_sd, text_encoders=None, unet=transformer, for_inference=True,
+                            exclude_patterns=[r".*(norm).*"]
                         )
                         lora_network.merge_to(None, transformer, lora_sd, dtype=None, device=offload_device, non_blocking=True)
                         print(f"LoRA {lora_name} merged with strength {lora_strength} (musubi tuner compatible)")
