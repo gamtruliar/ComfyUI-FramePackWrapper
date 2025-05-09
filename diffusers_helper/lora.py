@@ -1,11 +1,14 @@
-# LoRA network module: musubi tuner準拠
+# LoRA network module: FramePack専用（musubi tuner準拠）
 import math
 import re
 from typing import Dict, List, Optional, Type, Union
 import torch
 import torch.nn as nn
 
-HUNYUAN_TARGET_REPLACE_MODULES = ["MMDoubleStreamBlock", "MMSingleStreamBlock"]
+FRAMEPACK_TARGET_REPLACE_MODULES = [
+    "HunyuanVideoTransformerBlock",
+    "HunyuanVideoSingleTransformerBlock",
+]
 
 class LoRAModule(torch.nn.Module):
     def __init__(
@@ -58,9 +61,13 @@ class LoRAModule(torch.nn.Module):
             for lora_up in self.lora_up:
                 torch.nn.init.zeros_(lora_up.weight)
 
-        alpha = self.lora_dim if alpha is None or alpha == 0 else alpha
+        if isinstance(alpha, torch.Tensor):
+            alpha_buf = alpha.detach().clone()
+        else:
+            alpha_buf = torch.tensor(alpha)
+        self.register_buffer("alpha", alpha_buf)
+
         self.scale = alpha / self.lora_dim
-        self.register_buffer("alpha", torch.tensor(alpha))
 
         self.multiplier = multiplier
         self.org_module = org_module
@@ -150,7 +157,7 @@ def create_arch_network_from_weights(
     **kwargs,
 ):
     return create_network_from_weights(
-        HUNYUAN_TARGET_REPLACE_MODULES, multiplier, weights_sd, text_encoders, unet, for_inference, **kwargs
+        FRAMEPACK_TARGET_REPLACE_MODULES, multiplier, weights_sd, text_encoders, unet, for_inference, **kwargs
     )
 
 def create_network_from_weights(
@@ -241,8 +248,28 @@ class LoRANetwork(torch.nn.Module):
         loras = []
         skipped = []
         for name, module in root_module.named_modules():
+            # exclude_patternsによる除外判定
+            if exclude_patterns is not None:
+                excluded = False
+                for pattern in exclude_patterns:
+                    if re.match(pattern, name):
+                        print(f"[LoRA][exclude] skip module: {name} (pattern: {pattern})")
+                        excluded = True
+                        break
+                if excluded:
+                    continue
             if target_replace_mods is None or module.__class__.__name__ in target_replace_mods:
                 for child_name, child_module in module.named_modules():
+                    # exclude_patternsによる除外判定（子モジュール名にも適用）
+                    if exclude_patterns is not None:
+                        excluded = False
+                        for pattern in exclude_patterns:
+                            if re.match(pattern, child_name):
+                                print(f"[LoRA][exclude] skip child module: {child_name} (pattern: {pattern})")
+                                excluded = True
+                                break
+                        if excluded:
+                            continue
                     is_linear = child_module.__class__.__name__ == "Linear"
                     is_conv2d = child_module.__class__.__name__ == "Conv2d"
                     is_conv2d_1x1 = is_conv2d and child_module.kernel_size == (1, 1)

@@ -40,6 +40,10 @@ From left to right:
 
  - 動画を段階的に生成することができます. 気に入った前段の生成結果が得られたら、その続きを生成することができます
  - You can generate a video in stages. If you are satisfied with the previous stage, you can generate the next stage.
+# LoRA
+ - musubi-tuner で作成した学習データのみ対応
+ - LoRA 適用時はモデルは bf16、base precision bf16 を指定 (fp8 だと LoRA 適用効果がみられませんでした)
+![image](https://github.com/user-attachments/assets/f1574fc2-2bcc-40e2-be4d-819e942f6af5)
 
 ## Feature
  - Set end frame

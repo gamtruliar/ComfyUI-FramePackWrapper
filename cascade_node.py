@@ -199,7 +199,8 @@ class FramePackCascadeSampler:
             history_latents = history_latents["samples"]  # 必ず1+2+16フレームを含む
             print(f"[FramePackSampler] previous history shape: {history_latents.shape}")
             print(f"[FramePackSampler] previous history means: {history_latents[:,:,:3,:,:].mean().item():.4f}")
-       
+        real_history_latents = None
+        
         # nodes.py準拠: inで受け取った値を使う
         # 初回は0、2回目以降は前段から受け継ぐ
         if total_generated_latent_frames is None:
@@ -422,25 +423,13 @@ class FramePackCascadeSampler:
                 break
         # forループ終了
 
-        # バイパス: 既に全セクション分生成済みの場合は即return
-        if history_latents.shape[2] >= total_latent_sections:
-            print(f"[FramePackSampler] bypass: all sections already generated (history_latents.shape={history_latents.shape})")
-            real_history_latents = history_latents[:, :, :total_latent_sections, :, :]
-            next_section_start = section_start + section_count
-            return (
-                {"samples": real_history_latents / vae_scaling_factor},
-                model,
-                positive,
-                negative,
-                image_embeds,
-                original_start_latent,
-                {"samples": history_latents},
-                total_second_length,
-                next_section_start,
-            )
-
         transformer.to(offload_device)
         mm.soft_empty_cache()
+
+        # バイパス: 既に全セクション分生成済みの場合に real_history_latentsを返す
+        if real_history_latents is None:
+            print(f"[FramePackSampler] bypass: all sections already generated (history_latents.shape={history_latents.shape})")
+            real_history_latents = history_latents[:, :, :total_generated_latent_frames, :, :]
 
         # 次のセクション番号を計算
         next_section_start = section_start + section_count

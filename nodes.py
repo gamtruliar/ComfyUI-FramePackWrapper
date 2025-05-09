@@ -308,9 +308,14 @@ class LoadFramePackModel:
                     if not any(keyword in name for keyword in params_to_keep):
                         param.data = param.data.to(torch.float8_e4m3fn)
 
-        if quantization == "fp8_e4m3fn_fast":
-            from .fp8_optimization import convert_fp8_linear
-            convert_fp8_linear(transformer, base_dtype, params_to_keep=params_to_keep)
+        if quantization == "fp8_e4m3fn" or quantization == "fp8_e4m3fn_fast" or quantization == "fp8_scaled":
+            transformer = transformer.to(torch.float8_e4m3fn)
+            if quantization == "fp8_e4m3fn_fast":
+                from .fp8_optimization import convert_fp8_linear
+                convert_fp8_linear(transformer, base_dtype, params_to_keep=params_to_keep)
+        elif quantization == "fp8_e5m2":
+            transformer = transformer.to(torch.float8_e5m2)
+
       
 
         DynamicSwapInstaller.install_model(transformer, device=device)
@@ -659,6 +664,8 @@ class FramePackSampler:
                 else:
                     # Calculate windows that distribute more evenly across the sequence
                     # This normalizes the padding values to create appropriate spacing
+                    # One can try to remove below trick and just
+                    # use `latent_paddings = list(reversed(range(total_latent_sections)))` to compare
                     if max_padding > 0:  # Avoid division by zero
                         progress = (max_padding - latent_padding) / max_padding
                         start_idx = int(progress * max(0, total_length - latent_window_size))
