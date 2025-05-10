@@ -527,6 +527,7 @@ class FramePackSampler:
                 "denoise_strength": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01}),
                 "positive_keyframes": ("LIST", {"tooltip": "List of positive CONDITIONING for keyframes"}),
                 "positive_keyframe_indices": ("LIST", {"tooltip": "Section indices for each positive_keyframe"}),
+                "mix_latent": ("BOOLEAN", {"default": True, "tooltip": "interpolate latents between keyframes"}),
             }
         }
     #end_image_embeds,embed_interpolation,start_embed_strength conflict with keyframes
@@ -584,14 +585,14 @@ class FramePackSampler:
                 preKey=nkey
         sortedkeys=list(sorted(keys, key=lambda x: x[0]))
         return sortedkeys
-    def getInterpolation(self, interpolationList, currentIndex):
+    def getInterpolation(self, interpolationList, currentIndex,mix_latent):
         #find the two closest keyframes
         preKey = None
         postKey = None
         preIndex=0
         postIndex=0
         #the start frame
-        currentIndex=currentIndex/(len(interpolationList)+1)
+        currentIndex=currentIndex/(len(interpolationList[-1][0])+1)
         if currentIndex<interpolationList[0][0]:
             return interpolationList[0][1], interpolationList[0][2],0
         if currentIndex>interpolationList[-1][0]:
@@ -611,7 +612,11 @@ class FramePackSampler:
         #interpolate
         p=(postKey[0]-currentIndex)/(postKey[0]-preKey[0])
         index=postIndex*(p)+preIndex*(1-p)
-        nkey=postKey[1]*(p)+preKey[1]*(1-p)
+        if mix_latent:
+            nkey = postKey[1] * (p) + preKey[1] * (1 - p)
+        else:
+            intp=int(p)
+            nkey=postKey[1]*(intp)+preKey[1]*(1-intp)
         if postKey[2] is None or preKey[2] is None:
             nkey2=None
         else:
@@ -630,7 +635,7 @@ class FramePackSampler:
                 end_image_embeds=None, start_embed_strength=1.0, end_embed_strength=1.0,
                 keyframes=None, end_latent=None, denoise_strength=1.0,
                 keyframe_seconds=None,keyframes_embeds=None,keyframes_embed_strengths=None,
-                positive_keyframes=None, positive_keyframe_indices=None):
+                positive_keyframes=None, positive_keyframe_indices=None,mix_latent=True):
 
         total_latent_sections =calcTotalLatentSections(total_second_length,latent_window_size )
         section_length = total_second_length / total_latent_sections
@@ -768,7 +773,7 @@ class FramePackSampler:
             # --- キーフレーム選択・weightロジック（先頭区間の特別扱いを追加） ---
             total_sections = len(latent_paddings)
             forward_section_no = total_sections - 1 - section_no
-            current_keyframe,image_encoder_last_hidden_state,userIndex=self.getInterpolation(interpolateList, forward_section_no)
+            current_keyframe,image_encoder_last_hidden_state,userIndex=self.getInterpolation(interpolateList, forward_section_no,mix_latent)
             print(f"Interpolation: {userIndex} interpolateList:{len(interpolateList)} forward_section_no:{forward_section_no} total_sections:{len(latent_paddings)}")
             clean_latents_pre=current_keyframe.to(history_latents)
             clean_latents_post, clean_latents_2x, clean_latents_4x = history_latents[:, :, :1 + 2 + 16, :, :].split([1, 2, 16], dim=2)
