@@ -20,7 +20,7 @@ from comfy.cli_args import args, LatentPreviewMethod
 script_directory = os.path.dirname(os.path.abspath(__file__))
 vae_scaling_factor = 0.476986
 
-from .diffusers_helper.models.hunyuan_video_packed import HunyuanVideoTransformer3DModelPacked
+from .diffusers_helper.models.hunyuan_video_packed import HunyuanVideoTransformer3DModel
 from .diffusers_helper.memory import DynamicSwapInstaller, move_model_to_device_with_memory_preservation, offload_model_from_device_for_memory_preservation
 from .diffusers_helper.pipelines.k_diffusion_hunyuan import sample_hunyuan
 from .diffusers_helper.utils import crop_or_pad_yield_mask
