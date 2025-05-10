@@ -374,45 +374,70 @@ class CreateKeyframes:
         return {
             "required": {
                 "latent_a": ("LATENT",),
+                "image_embeds_a": ("CLIP_VISION_OUTPUT",),
+                "embed_strength_a": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01,"tooltip": "Weighted average constant for image embed interpolation."}),
                 "index_a": ("INT", {"tooltip": "section index for latent_a"}),
             },
             "optional": {
                 "latent_b": ("LATENT",),
+                "image_embeds_b": ("CLIP_VISION_OUTPUT",),
+                "embed_strength_b": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01,"tooltip": "Weighted average constant for image embed interpolation."}),
                 "index_b": ("INT", {"tooltip": "section index for latent_b"}),
                 "latent_c": ("LATENT",),
+                "image_embeds_c": ("CLIP_VISION_OUTPUT",),
+                "embed_strength_c": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01,"tooltip": "Weighted average constant for image embed interpolation."}),
                 "index_c": ("INT", {"tooltip": "section index for latent_c"}),
                 "prev_keyframes": ("LATENT", {"default": None}),
+                "prev_keyframe_image_embeds": ("LIST", {"default": []}),
+                "prev_keyframe_image_embed_strengths": ("LIST", {"default": []}),
                 "prev_keyframe_indices": ("LIST", {"default": []}),
+
             }
         }
-    RETURN_TYPES = ("LATENT", "LIST")
-    RETURN_NAMES = ("keyframes", "keyframe_indices")
+    RETURN_TYPES = ("LATENT", "LIST", "LIST")
+    RETURN_NAMES = ("keyframes","keyframe_embeds","keyframe_embed_strengths", "keyframe_indices")
     FUNCTION = "create_keyframes"
     CATEGORY = "FramePackWrapper"
     DESCRIPTION = "Create keyframes latents and section indices. index_*: section index for each latent. Can be cascaded."
 
-    def create_keyframes(self, latent_a, index_a, latent_b=None, index_b=None, latent_c=None, index_c=None, prev_keyframes=None, prev_keyframe_indices=None):
+    def create_keyframes(self,
+                         latent_a,image_embeds_a,embed_strength_a, index_a,
+                         latent_b=None,image_embeds_b=None,embed_strength_b=None, index_b=None,
+                         latent_c=None,image_embeds_c=None,embed_strength_c=None, index_c=None,
+                         prev_keyframes=None,prev_keyframe_image_embeds=None,prev_keyframe_image_embed_strengths=None, prev_keyframe_indices=None):
         tensors = []
         indices = []
-        if prev_keyframes is not None and prev_keyframe_indices is not None:
+        image_embeds=[]
+        image_embed_strengths = []
+        if prev_keyframes is not None and prev_keyframe_indices is not None and prev_keyframe_image_embeds is not None and prev_keyframe_image_embed_strengths is not None:
             tensors.append(prev_keyframes["samples"])
             indices += list(prev_keyframe_indices)
+            image_embeds+= list(prev_keyframe_image_embeds)
+            image_embed_strengths+= list(prev_keyframe_image_embed_strengths)
         tensors.append(latent_a["samples"])
         indices.append(index_a)
-        if latent_b is not None and index_b is not None:
+        image_embeds.append(image_embeds_a)
+        image_embed_strengths.append(embed_strength_a)
+        if latent_b is not None and index_b is not None and image_embeds_b is not None and embed_strength_b is not None:
             tensors.append(latent_b["samples"])
             indices.append(index_b)
-        if latent_c is not None and index_c is not None:
+            image_embeds.append(image_embeds_b)
+            image_embed_strengths.append(embed_strength_b)
+        if latent_c is not None and index_c is not None and image_embeds_c is not None and embed_strength_c is not None:
             tensors.append(latent_c["samples"])
             indices.append(index_c)
-        zipped = list(zip(indices, tensors))
+            image_embeds.append(image_embeds_c)
+            image_embed_strengths.append(embed_strength_c)
+        zipped = list(zip(indices, tensors,image_embeds, image_embed_strengths))
         zipped.sort(key=lambda x: x[0])
         sorted_indices = [z[0] for z in zipped]
         sorted_tensors = [z[1] for z in zipped]
+        sorted_image_embeds = [z[2] for z in zipped]
+        sorted_image_embed_strengths = [z[3] for z in zipped]
         keyframes = torch.cat(sorted_tensors, dim=2) if len(sorted_tensors) > 1 else sorted_tensors[0]
         print(f"keyframes shape: {keyframes.shape}")
         print(f"keyframe_indices: {sorted_indices}")
-        return ({"samples": keyframes}, sorted_indices)
+        return ({"samples": keyframes}, sorted_image_embeds,sorted_image_embed_strengths,sorted_indices,)
 
 class CreatePositiveKeyframes:
     @classmethod
@@ -486,7 +511,12 @@ class FramePackSampler:
             "optional": {
                 "image_embeds": ("CLIP_VISION_OUTPUT", ),
                 "end_latent": ("LATENT", {"tooltip": "end Latents to use for last frame"} ),
+                "end_image_embeds": ("CLIP_VISION_OUTPUT",),
+                "start_embed_strength": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01,"tooltip": "Weighted average constant for image embed interpolation."}),
+                "end_embed_strength": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01,"tooltip": "Weighted average constant for image embed interpolation."}),
                 "keyframes": ("LATENT", {"tooltip": "init Lantents to use for image2video keyframes"} ),
+                "keyframes_embeds": ("LIST", {"keyframe CLIP_VISION_OUTPUT"}),
+                "keyframes_embed_strengths": ("LIST", {"keyframe Weighted average constant for image embed interpolation"}),
                 "keyframe_indices": ("LIST", {"tooltip": "section index for each keyframe (e.g. [0, 3, 5])"}),
 				"initial_samples": ("LATENT", {"tooltip": "init Latents to use for video2video"} ),
                 "denoise_strength": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01}),
@@ -501,10 +531,90 @@ class FramePackSampler:
     FUNCTION = "process"
     CATEGORY = "FramePackWrapper"
 
-    def process(self, model, shift, positive, negative, latent_window_size, use_teacache, total_second_length, teacache_rel_l1_thresh, image_embeds, steps, cfg, 
+    def calcInterpolationList(self, start_latent, start_embed_strength,start_image_encoder_last_hidden_state,
+                          end_indices,end_latent,end_embed_strength,end_image_encoder_last_hidden_state,
+                          keyframe_indices,keyframes,keyframes_embed_strengths,keyframes_image_encoder_last_hidden_state):
+        #from max strength to mix
+        orderedStuffs=[]
+        orderedStuffs.append((0, start_latent, start_embed_strength, start_image_encoder_last_hidden_state))
+        if keyframes is not None:
+            for i in range(len(keyframes)):
+                orderedStuffs.append((keyframe_indices[i], keyframes[i], keyframes_embed_strengths[i], keyframes_image_encoder_last_hidden_state[i]))
+        orderedStuffs.append((end_indices,end_latent, end_embed_strength,end_image_encoder_last_hidden_state))
+        keys=[]
+        maxStrength=0
+        maxStrengthIndex=0
+        for i in range(len(orderedStuffs)-1):
+            stuff=orderedStuffs[i]
+            if stuff[2]>maxStrength:
+                maxStrength=stuff[2]
+                maxStrengthIndex=i
+        if maxStrength==0:
+            for stuff in orderedStuffs:
+                keys.append((stuff[0], stuff[1], stuff[3]))
+        else:
+            preKey = (orderedStuffs[maxStrengthIndex][0], orderedStuffs[maxStrengthIndex][1], orderedStuffs[maxStrengthIndex][3])
+            keys.append(preKey)
+            #forward
+            for i in range(maxStrengthIndex+1,len(orderedStuffs)-1):
+                stuff=orderedStuffs[i]
+                nStrength=stuff[2]
+                p=nStrength/maxStrength
+                hidden_state=None
+                if stuff[3] is not None:
+                    hidden_state=stuff[3]*(p)+preKey[2]*(1-p)
+                nkey=(stuff[0], stuff[1]*(p)+preKey[1]*(1-p),hidden_state)
+                keys.append(nkey)
+                preKey=nkey
+            #backward
+            preKey = (orderedStuffs[maxStrengthIndex][0], orderedStuffs[maxStrengthIndex][1], orderedStuffs[maxStrengthIndex][3])
+            for i in range(maxStrengthIndex-1,0,-1):
+                stuff=orderedStuffs[i]
+                nStrength=stuff[2]
+                p=nStrength/maxStrength
+                hidden_state = None
+                if stuff[3] is not None:
+                    hidden_state = stuff[3] * (p) + preKey[2] * (1 - p)
+                nkey=(stuff[0], stuff[1]*(p)+preKey[1]*(1-p),hidden_state)
+                keys.append(nkey)
+                preKey=nkey
+        sortedkeys=list(sorted(keys, key=lambda x: x[0]))
+        return sortedkeys
+    def getInterpolation(self, interpolationList, currentIndex):
+        #find the two closest keyframes
+        preKey = None
+        postKey = None
+        for i in range(len(interpolationList)):
+            if interpolationList[i][0] == currentIndex:
+                return interpolationList[i][1], interpolationList[i][2]
+            if interpolationList[i][0] > currentIndex:
+                postKey = interpolationList[i]
+                break
+            preKey = interpolationList[i]
+        if preKey is None or postKey is None:
+            raise ValueError("preKey or postKey is None")
+        #interpolate
+        p=(postKey[0]-currentIndex)/(postKey[0]-preKey[0])
+        nkey=postKey[1]*(p)+preKey[1]*(1-p)
+        if postKey[2] is None or preKey[2] is None:
+            nkey2=None
+        else:
+            nkey2=postKey[2]*(p)+preKey[2]*(1-p)
+        return nkey, nkey2
+
+
+
+
+
+
+    def process(self, model, shift, positive, negative, latent_window_size, use_teacache, total_second_length, teacache_rel_l1_thresh,
+                image_embeds, steps, cfg,
                 guidance_scale, seed, sampler, gpu_memory_preservation, 
-                start_latent=None, initial_samples=None, keyframes=None, end_latent=None, denoise_strength=1.0, keyframe_indices=None,
-                positive_keyframes=None, positive_keyframe_indices=None, keyframe_weight=2.0, force_keyframe=False):
+                start_latent=None, initial_samples=None,
+                end_image_embeds=None, start_embed_strength=1.0, end_embed_strength=1.0,
+                keyframes=None, end_latent=None, denoise_strength=1.0,
+                keyframe_indices=None,keyframes_embeds=None,keyframes_embed_strengths=None,
+                positive_keyframes=None, positive_keyframe_indices=None, keyframe_weight=2.0):
         total_latent_sections = (total_second_length * 30) / (latent_window_size * 4)
         total_latent_sections = int(max(round(total_latent_sections), 1))
         print("total_latent_sections: ", total_latent_sections)
@@ -542,8 +652,21 @@ class FramePackSampler:
         print(f"[FramePackSampler] positive[0][0] device: {positive[0][0].device}")
         print(f"[FramePackSampler] negative[0][0] device: {negative[0][0].device}")
 
-		if image_embeds is not None:
-        	image_encoder_last_hidden_state = image_embeds["last_hidden_state"].to(device, base_dtype)
+        if image_embeds is not None:
+            start_image_encoder_last_hidden_state = image_embeds["last_hidden_state"].to(device, base_dtype)
+            image_encoder_last_hidden_state=start_image_encoder_last_hidden_state
+        keyframes_image_encoder_last_hidden_state = []
+        if keyframes_embeds is not None:
+            for kf in keyframes_embeds:
+                kf = kf["last_hidden_state"].to(device, base_dtype)
+                keyframes_image_encoder_last_hidden_state.append(kf)
+        has_end_image = end_latent is not None
+        if has_end_image:
+            assert end_image_embeds is not None
+            end_image_encoder_last_hidden_state = end_image_embeds["last_hidden_state"].to(device, base_dtype)
+        else:
+            if image_embeds is not None:
+                end_image_encoder_last_hidden_state = torch.zeros_like(start_image_encoder_last_hidden_state)
 
         llama_vec = positive[0][0].to(device, base_dtype)
         llama_vec, llama_attention_mask = crop_or_pad_yield_mask(llama_vec, length=512)
@@ -603,6 +726,10 @@ class FramePackSampler:
             # use `latent_paddings = list(reversed(range(total_latent_sections)))` to compare
             latent_paddings = [3] + [2] * (total_latent_sections - 3) + [1, 0]
             latent_paddings_list = latent_paddings.copy()
+
+        interpolateList=self.calcInterpolationList(start_latent, start_embed_strength, start_image_encoder_last_hidden_state,
+                          total_latent_sections-1, end_latent, end_embed_strength, end_image_encoder_last_hidden_state,
+                          keyframe_indices, keyframes, keyframes_embed_strengths, keyframes_image_encoder_last_hidden_state)
         for section_no, latent_padding in enumerate(latent_paddings):
             print(f"latent_padding: {latent_padding}")
             print(f"section no: {section_no}")
@@ -616,50 +743,15 @@ class FramePackSampler:
             clean_latent_indices_pre, blank_indices, latent_indices, clean_latent_indices_post, clean_latent_2x_indices, clean_latent_4x_indices = indices.split([start_latent_frames, latent_padding_size, latent_window_size, 1, 2, 16], dim=1)
             clean_latent_indices = torch.cat([clean_latent_indices_pre, clean_latent_indices_post], dim=1)
 
-            # clean_latents_pre を keyframes からセクションごとに取得。なければ start_latent
-            current_keyframe = start_latent.to(history_latents)
+
             # --- キーフレーム選択・weightロジック（先頭区間の特別扱いを追加） ---
             total_sections = len(latent_paddings)
             forward_section_no = total_sections - 1 - section_no
-            current_keyframe = start_latent.to(history_latents)
-            idx_current = 0
-            next_idx = None
-            if keyframes is not None and keyframes.shape[2] > 0 and keyframe_indices is not None and len(keyframe_indices) > 0:
-                if forward_section_no < keyframe_indices[0]:
-                    # 先頭より前の区間: start_latent→最初のキーフレーム
-                    current_keyframe = start_latent.to(history_latents)
-                    idx_current = 0
-                    next_idx = keyframe_indices[0]
-                elif forward_section_no >= keyframe_indices[-1]:
-                    # 最後のキーフレーム以降: 最後のキーフレーム→末尾
-                    current_keyframe = keyframes[:, :, -1:, :, :].to(history_latents)
-                    idx_current = keyframe_indices[-1]
-                    next_idx = total_sections - 1
-                else:
-                    for i in range(1, len(keyframe_indices)):
-                        if keyframe_indices[i-1] <= forward_section_no < keyframe_indices[i]:
-                            current_keyframe = keyframes[:, :, i-1:i, :, :].to(history_latents)
-                            idx_current = keyframe_indices[i-1]
-                            next_idx = keyframe_indices[i]
-                            break
-                # t計算: 分母が0（同じキーフレームindexが複数回設定など）の場合はt=1.0で回避
-                width = next_idx - idx_current if next_idx is not None else 1
-                if width == 0:
-                    t = 1.0
-                else:
-                    t = (next_idx - forward_section_no) / width
-                weight = 1.0 + (keyframe_weight - 1.0) * t
-                clean_latents_pre = current_keyframe * weight
-                print(f"[FramePackSampler] forward_section_no={forward_section_no}: use keyframe {idx_current} (next {next_idx}), weight={weight:.2f}, t={t:.2f}")
-            else:
-                clean_latents_pre = start_latent.to(history_latents)
-                print(f"keyframes is None: uses start_latent")
+            current_keyframe,image_encoder_last_hidden_state=self.getInterpolation(interpolateList, forward_section_no)
+            clean_latents_pre=current_keyframe.to(history_latents)
             clean_latents_post, clean_latents_2x, clean_latents_4x = history_latents[:, :, :1 + 2 + 16, :, :].split([1, 2, 16], dim=2)
-            # end_latent対応: 最初のセクションでclean_latents_postをend_latentで差し替え
-            if section_no == 0 and end_latent is not None:
-                print(f"[FramePackSampler] end_latent is set. Overwriting clean_latents_post. old shape: {clean_latents_post.shape}, new shape: {end_latent.shape}")
-                clean_latents_post = end_latent.to(clean_latents_post)
             clean_latents = torch.cat([clean_latents_pre, clean_latents_post], dim=2)
+
 
             #vid2vid
             
