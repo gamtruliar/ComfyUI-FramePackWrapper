@@ -394,7 +394,7 @@ class CreateKeyframes:
 
             }
         }
-    RETURN_TYPES = ("LATENT", "LIST", "LIST")
+    RETURN_TYPES = ("LATENT", "LIST", "LIST", "LIST")
     RETURN_NAMES = ("keyframes","keyframe_embeds","keyframe_embed_strengths", "keyframe_indices")
     FUNCTION = "create_keyframes"
     CATEGORY = "FramePackWrapper"
@@ -515,8 +515,8 @@ class FramePackSampler:
                 "start_embed_strength": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01,"tooltip": "Weighted average constant for image embed interpolation."}),
                 "end_embed_strength": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01,"tooltip": "Weighted average constant for image embed interpolation."}),
                 "keyframes": ("LATENT", {"tooltip": "init Lantents to use for image2video keyframes"} ),
-                "keyframes_embeds": ("LIST", {"keyframe CLIP_VISION_OUTPUT"}),
-                "keyframes_embed_strengths": ("LIST", {"keyframe Weighted average constant for image embed interpolation"}),
+                "keyframes_embeds": ("LIST", {"tooltip":"keyframe CLIP_VISION_OUTPUT"}),
+                "keyframes_embed_strengths": ("LIST", {"tooltip":"keyframe Weighted average constant for image embed interpolation"}),
                 "keyframe_indices": ("LIST", {"tooltip": "section index for each keyframe (e.g. [0, 3, 5])"}),
 				"initial_samples": ("LATENT", {"tooltip": "init Latents to use for video2video"} ),
                 "denoise_strength": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01}),
