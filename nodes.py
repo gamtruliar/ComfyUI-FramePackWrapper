@@ -395,7 +395,7 @@ class CreateKeyframes:
                 "prev_keyframes": ("LATENT", {"default": None}),
                 "prev_keyframe_image_embeds": ("LIST", {"default": []}),
                 "prev_keyframe_image_embed_strengths": ("LIST", {"default": []}),
-                "prev_keyframe_indices": ("LIST", {"default": []}),
+                "prev_keyframe_seconds": ("LIST", {"default": []}),
 
             }
         }
@@ -403,20 +403,20 @@ class CreateKeyframes:
     RETURN_NAMES = ("keyframes","keyframe_embeds","keyframe_embed_strengths", "keyframe_seconds")
     FUNCTION = "create_keyframes"
     CATEGORY = "FramePackWrapper"
-    DESCRIPTION = "Create keyframes latents and section indices. index_*: section index for each latent. Can be cascaded."
+    DESCRIPTION = "Create keyframes latents and section timing."
 
     def create_keyframes(self,
                          latent_a,image_embeds_a,embed_strength_a, seconds_a,
                          latent_b=None,image_embeds_b=None,embed_strength_b=None, seconds_b=None,
                          latent_c=None,image_embeds_c=None,embed_strength_c=None, seconds_c=None,
-                         prev_keyframes=None,prev_keyframe_image_embeds=None,prev_keyframe_image_embed_strengths=None, prev_keyframe_indices=None):
+                         prev_keyframes=None,prev_keyframe_image_embeds=None,prev_keyframe_image_embed_strengths=None, prev_keyframe_seconds=None):
         tensors = []
         indices = []
         image_embeds=[]
         image_embed_strengths = []
-        if prev_keyframes is not None and prev_keyframe_indices is not None and prev_keyframe_image_embeds is not None and prev_keyframe_image_embed_strengths is not None:
+        if prev_keyframes is not None and prev_keyframe_seconds is not None and prev_keyframe_image_embeds is not None and prev_keyframe_image_embed_strengths is not None:
             tensors.append(prev_keyframes["samples"])
-            indices += list(prev_keyframe_indices)
+            indices += list(prev_keyframe_seconds)
             image_embeds+= list(prev_keyframe_image_embeds)
             image_embed_strengths+= list(prev_keyframe_image_embed_strengths)
         tensors.append(latent_a["samples"])
@@ -527,7 +527,6 @@ class FramePackSampler:
                 "denoise_strength": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01}),
                 "positive_keyframes": ("LIST", {"tooltip": "List of positive CONDITIONING for keyframes"}),
                 "positive_keyframe_indices": ("LIST", {"tooltip": "Section indices for each positive_keyframe"}),
-                "keyframe_weight": ("FLOAT", {"default": 1.5, "min": 0.1, "max": 10.0, "step": 0.1, "tooltip": "Keyframe multiplier: How much to emphasize the latent at keyframe positions."}),
             }
         }
     #end_image_embeds,embed_interpolation,start_embed_strength conflict with keyframes
@@ -589,28 +588,33 @@ class FramePackSampler:
         #find the two closest keyframes
         preKey = None
         postKey = None
+        preIndex=0
+        postIndex=0
         if currentIndex<interpolationList[0][0]:
-            return interpolationList[0][1], interpolationList[0][2]
+            return interpolationList[0][1], interpolationList[0][2],0
         if currentIndex>interpolationList[-1][0]:
-            return interpolationList[-1][1], interpolationList[-1][2]
+            return interpolationList[-1][1], interpolationList[-1][2],len(interpolationList)-1
         for i in range(len(interpolationList)):
             if interpolationList[i][0] == currentIndex:
-                return interpolationList[i][1], interpolationList[i][2]
+                return interpolationList[i][1], interpolationList[i][2], i
             if interpolationList[i][0] > currentIndex:
                 postKey = interpolationList[i]
+                postIndex=i
                 break
             preKey = interpolationList[i]
+            preIndex=i
 
         if preKey is None or postKey is None:
             raise ValueError("preKey or postKey is None")
         #interpolate
         p=(postKey[0]-currentIndex)/(postKey[0]-preKey[0])
+        index=postIndex*(p)+preIndex*(1-p)
         nkey=postKey[1]*(p)+preKey[1]*(1-p)
         if postKey[2] is None or preKey[2] is None:
             nkey2=None
         else:
             nkey2=postKey[2]*(p)+preKey[2]*(1-p)
-        return nkey, nkey2
+        return nkey, nkey2,index
 
 
 
@@ -624,7 +628,7 @@ class FramePackSampler:
                 end_image_embeds=None, start_embed_strength=1.0, end_embed_strength=1.0,
                 keyframes=None, end_latent=None, denoise_strength=1.0,
                 keyframe_seconds=None,keyframes_embeds=None,keyframes_embed_strengths=None,
-                positive_keyframes=None, positive_keyframe_indices=None, keyframe_weight=2.0):
+                positive_keyframes=None, positive_keyframe_indices=None):
 
         total_latent_sections =calcTotalLatentSections(total_second_length,latent_window_size )
         section_length = total_second_length / total_latent_sections
@@ -748,6 +752,7 @@ class FramePackSampler:
             print(f"latent_padding: {latent_padding}")
             print(f"section no: {section_no}")
             is_last_section = latent_padding == 0
+            is_first_section = latent_padding == latent_paddings[0]
             latent_padding_size = latent_padding * latent_window_size
 
             print(f'latent_padding_size = {latent_padding_size}, is_last_section = {is_last_section}')
@@ -761,10 +766,16 @@ class FramePackSampler:
             # --- キーフレーム選択・weightロジック（先頭区間の特別扱いを追加） ---
             total_sections = len(latent_paddings)
             forward_section_no = total_sections - 1 - section_no
-            current_keyframe,image_encoder_last_hidden_state=self.getInterpolation(interpolateList, forward_section_no)
+            current_keyframe,image_encoder_last_hidden_state,userIndex=self.getInterpolation(interpolateList, forward_section_no)
+            print(f"Interpolation: {userIndex}")
             clean_latents_pre=current_keyframe.to(history_latents)
             clean_latents_post, clean_latents_2x, clean_latents_4x = history_latents[:, :, :1 + 2 + 16, :, :].split([1, 2, 16], dim=2)
             clean_latents = torch.cat([clean_latents_pre, clean_latents_post], dim=2)
+
+            # Use end image latent for the first section if provided
+            if is_first_section:
+                clean_latents_post = interpolateList[-1][1].to(history_latents)
+                clean_latents = torch.cat([clean_latents_pre, clean_latents_post], dim=2)
 
 
             #vid2vid
