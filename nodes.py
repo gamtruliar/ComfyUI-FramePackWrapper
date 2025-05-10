@@ -543,8 +543,8 @@ class FramePackSampler:
         orderedStuffs=[]
         orderedStuffs.append((0, start_latent, start_embed_strength, start_image_encoder_last_hidden_state))
         if keyframes is not None:
-            for i in range(len(keyframes)):
-                orderedStuffs.append((keyframe_indices[i], keyframes[i], keyframes_embed_strengths[i], keyframes_image_encoder_last_hidden_state[i]))
+            for i in range(len(keyframe_indices)):
+                orderedStuffs.append((keyframe_indices[i],  keyframes[:, :, i:i+1, :, :], keyframes_embed_strengths[i], keyframes_image_encoder_last_hidden_state[i]))
         orderedStuffs.append((end_indices,end_latent, end_embed_strength,end_image_encoder_last_hidden_state))
         keys=[]
         maxStrength=0
