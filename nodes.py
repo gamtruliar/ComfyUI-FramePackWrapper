@@ -548,7 +548,7 @@ class FramePackSampler:
         keys=[]
         maxStrength=0
         maxStrengthIndex=0
-        for i in range(len(orderedStuffs)-1):
+        for i in range(len(orderedStuffs)):
             stuff=orderedStuffs[i]
             if stuff[2]>maxStrength:
                 maxStrength=stuff[2]
@@ -560,7 +560,7 @@ class FramePackSampler:
             preKey = (orderedStuffs[maxStrengthIndex][0], orderedStuffs[maxStrengthIndex][1], orderedStuffs[maxStrengthIndex][3])
             keys.append(preKey)
             #forward
-            for i in range(maxStrengthIndex+1,len(orderedStuffs)-1):
+            for i in range(maxStrengthIndex+1,len(orderedStuffs)):
                 stuff=orderedStuffs[i]
                 nStrength=stuff[2]
                 p=nStrength/maxStrength
@@ -767,7 +767,7 @@ class FramePackSampler:
             total_sections = len(latent_paddings)
             forward_section_no = total_sections - 1 - section_no
             current_keyframe,image_encoder_last_hidden_state,userIndex=self.getInterpolation(interpolateList, forward_section_no)
-            print(f"Interpolation: {userIndex}")
+            print(f"Interpolation: {userIndex} interpolateList:{len(interpolateList)} forward_section_no:{forward_section_no} total_sections:{len(latent_paddings)}")
             clean_latents_pre=current_keyframe.to(history_latents)
             clean_latents_post, clean_latents_2x, clean_latents_4x = history_latents[:, :, :1 + 2 + 16, :, :].split([1, 2, 16], dim=2)
             clean_latents = torch.cat([clean_latents_pre, clean_latents_post], dim=2)
