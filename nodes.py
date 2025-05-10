@@ -642,7 +642,7 @@ class FramePackSampler:
         print("total_latent_sections: ", total_latent_sections)
         keyframe_indices=[]
         for keyframe_second in keyframe_seconds:
-            keyframe_indices.append(int(keyframe_second/section_length))
+            keyframe_indices.append(keyframe_second/section_length)
 
 
         transformer = model["transformer"]
