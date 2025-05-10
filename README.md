@@ -1,6 +1,19 @@
-**Notice: This is a fork by nirvash. This repository is a test version for keyframe support, based on original ComfyUI-FramePackWrapper.  
-Original repository (kijai): https://github.com/kijai/ComfyUI-FramePackWrapper**
+**Notice: This is a fork by gamtruliar.
+This repository is modified version of nirvash keyframe support.
+This repository is a test version for keyframe support, based on  nirvash & original(kijai) ComfyUI-FramePackWrapper.**  
 
+**Original repository (nirvash): https://github.com/nirvash/ComfyUI-FramePackWrapper**
+
+**Original repository (kijai): https://github.com/kijai/ComfyUI-FramePackWrapper**
+
+## Change
+0. Continuous integration of kijai's original repository
+1. Independent Keyframe Strength & Linear Interpolation of latent and embedding
+2. Support Keyframe embedding
+3. "Timestamp Prompt Parser" support variant section duration when latent window size change
+4. Change "Create Keyframe" indices to seconds 
+
+## ------------------------------------------------------
 ![screenshot](images/screenshot-01.png)
 
 ## Abstract
@@ -30,6 +43,8 @@ https://github.com/user-attachments/assets/dbc4444e-5e6d-41ad-b1ff-801f27ca86cf
  - By specifying keyframes, you can control the changes in the image.
 
 ## Cascade Sampler
+**!!may not work, as merged main branch!!**
+
 https://github.com/user-attachments/assets/7491220b-49b5-4cfe-984d-ea7f71a55610
 
 From left to right:
@@ -41,6 +56,8 @@ From left to right:
  - 動画を段階的に生成することができます. 気に入った前段の生成結果が得られたら、その続きを生成することができます
  - You can generate a video in stages. If you are satisfied with the previous stage, you can generate the next stage.
 # LoRA
+**!!may not work, as merged main branch!!**
+
  - musubi-tuner で作成した学習データのみ対応
  - LoRA 適用時はモデルは bf16、base precision bf16 を指定 (fp8 だと LoRA 適用効果がみられませんでした)
 ![image](https://github.com/user-attachments/assets/f1574fc2-2bcc-40e2-be4d-819e942f6af5)
