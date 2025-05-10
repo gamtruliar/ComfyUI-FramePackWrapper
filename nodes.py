@@ -592,7 +592,7 @@ class FramePackSampler:
         preIndex=0
         postIndex=0
         #the start frame
-        currentIndex=currentIndex/(len(interpolationList[-1][0])+1)
+        currentIndex=currentIndex/(interpolationList[-1][0]+1)*(interpolationList[-1][0])
         if currentIndex<interpolationList[0][0]:
             return interpolationList[0][1], interpolationList[0][2],0
         if currentIndex>interpolationList[-1][0]:
@@ -611,16 +611,16 @@ class FramePackSampler:
             raise ValueError("preKey or postKey is None")
         #interpolate
         p=(postKey[0]-currentIndex)/(postKey[0]-preKey[0])
-        index=postIndex*(p)+preIndex*(1-p)
+        index=postIndex*(1-p)+preIndex*(p)
         if mix_latent:
-            nkey = postKey[1] * (p) + preKey[1] * (1 - p)
+            nkey = postKey[1] * (1-p) + preKey[1] * (p)
         else:
             intp=int(p)
-            nkey=postKey[1]*(intp)+preKey[1]*(1-intp)
+            nkey=postKey[1]*(1-intp)+preKey[1]*(intp)
         if postKey[2] is None or preKey[2] is None:
             nkey2=None
         else:
-            nkey2=postKey[2]*(p)+preKey[2]*(1-p)
+            nkey2=postKey[2]*(1-p)+preKey[2]*(p)
         return nkey, nkey2,index
 
 
