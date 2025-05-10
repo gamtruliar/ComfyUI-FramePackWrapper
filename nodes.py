@@ -590,6 +590,8 @@ class FramePackSampler:
         postKey = None
         preIndex=0
         postIndex=0
+        #the start frame
+        currentIndex=currentIndex/(len(interpolationList)+1)
         if currentIndex<interpolationList[0][0]:
             return interpolationList[0][1], interpolationList[0][2],0
         if currentIndex>interpolationList[-1][0]:
