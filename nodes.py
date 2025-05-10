@@ -33,6 +33,11 @@ from .diffusers_helper.lora import create_arch_network_from_weights
 
 from diffusers.loaders.lora_conversion_utils import _convert_hunyuan_video_lora_to_diffusers
 
+def calcTotalLatentSections(total_second_length, latent_window_size):
+    total_latent_sections = (total_second_length * 30) / (latent_window_size * 4)
+    total_latent_sections = int(max(round(total_latent_sections), 1))
+    return total_latent_sections
+
 class HyVideoModel(comfy.model_base.BaseModel):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -376,17 +381,17 @@ class CreateKeyframes:
                 "latent_a": ("LATENT",),
                 "image_embeds_a": ("CLIP_VISION_OUTPUT",),
                 "embed_strength_a": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01,"tooltip": "Weighted average constant for image embed interpolation."}),
-                "index_a": ("INT", {"tooltip": "section index for latent_a"}),
+                "seconds_a": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 120.0, "step": 0.1, "tooltip": "timing of the keyframe in seconds"}),
             },
             "optional": {
                 "latent_b": ("LATENT",),
                 "image_embeds_b": ("CLIP_VISION_OUTPUT",),
                 "embed_strength_b": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01,"tooltip": "Weighted average constant for image embed interpolation."}),
-                "index_b": ("INT", {"tooltip": "section index for latent_b"}),
+                "seconds_b": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 120.0, "step": 0.1,"tooltip": "timing of the keyframe in seconds"}),
                 "latent_c": ("LATENT",),
                 "image_embeds_c": ("CLIP_VISION_OUTPUT",),
                 "embed_strength_c": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01,"tooltip": "Weighted average constant for image embed interpolation."}),
-                "index_c": ("INT", {"tooltip": "section index for latent_c"}),
+                "seconds_c": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 120.0, "step": 0.1,"tooltip": "timing of the keyframe in seconds"}),
                 "prev_keyframes": ("LATENT", {"default": None}),
                 "prev_keyframe_image_embeds": ("LIST", {"default": []}),
                 "prev_keyframe_image_embed_strengths": ("LIST", {"default": []}),
@@ -395,15 +400,15 @@ class CreateKeyframes:
             }
         }
     RETURN_TYPES = ("LATENT", "LIST", "LIST", "LIST")
-    RETURN_NAMES = ("keyframes","keyframe_embeds","keyframe_embed_strengths", "keyframe_indices")
+    RETURN_NAMES = ("keyframes","keyframe_embeds","keyframe_embed_strengths", "keyframe_seconds")
     FUNCTION = "create_keyframes"
     CATEGORY = "FramePackWrapper"
     DESCRIPTION = "Create keyframes latents and section indices. index_*: section index for each latent. Can be cascaded."
 
     def create_keyframes(self,
-                         latent_a,image_embeds_a,embed_strength_a, index_a,
-                         latent_b=None,image_embeds_b=None,embed_strength_b=None, index_b=None,
-                         latent_c=None,image_embeds_c=None,embed_strength_c=None, index_c=None,
+                         latent_a,image_embeds_a,embed_strength_a, seconds_a,
+                         latent_b=None,image_embeds_b=None,embed_strength_b=None, seconds_b=None,
+                         latent_c=None,image_embeds_c=None,embed_strength_c=None, seconds_c=None,
                          prev_keyframes=None,prev_keyframe_image_embeds=None,prev_keyframe_image_embed_strengths=None, prev_keyframe_indices=None):
         tensors = []
         indices = []
@@ -415,17 +420,17 @@ class CreateKeyframes:
             image_embeds+= list(prev_keyframe_image_embeds)
             image_embed_strengths+= list(prev_keyframe_image_embed_strengths)
         tensors.append(latent_a["samples"])
-        indices.append(index_a)
+        indices.append(seconds_a)
         image_embeds.append(image_embeds_a)
         image_embed_strengths.append(embed_strength_a)
-        if latent_b is not None and index_b is not None and image_embeds_b is not None and embed_strength_b is not None:
+        if latent_b is not None and seconds_b is not None and image_embeds_b is not None and embed_strength_b is not None:
             tensors.append(latent_b["samples"])
-            indices.append(index_b)
+            indices.append(seconds_b)
             image_embeds.append(image_embeds_b)
             image_embed_strengths.append(embed_strength_b)
-        if latent_c is not None and index_c is not None and image_embeds_c is not None and embed_strength_c is not None:
+        if latent_c is not None and seconds_c is not None and image_embeds_c is not None and embed_strength_c is not None:
             tensors.append(latent_c["samples"])
-            indices.append(index_c)
+            indices.append(seconds_c)
             image_embeds.append(image_embeds_c)
             image_embed_strengths.append(embed_strength_c)
         zipped = list(zip(indices, tensors,image_embeds, image_embed_strengths))
@@ -517,7 +522,7 @@ class FramePackSampler:
                 "keyframes": ("LATENT", {"tooltip": "init Lantents to use for image2video keyframes"} ),
                 "keyframes_embeds": ("LIST", {"tooltip":"keyframe CLIP_VISION_OUTPUT"}),
                 "keyframes_embed_strengths": ("LIST", {"tooltip":"keyframe Weighted average constant for image embed interpolation"}),
-                "keyframe_indices": ("LIST", {"tooltip": "section index for each keyframe (e.g. [0, 3, 5])"}),
+                "keyframe_seconds": ("LIST", {"tooltip": "section seconds for each keyframe (e.g. [0.5, 1.2, 5])"}),
 				"initial_samples": ("LATENT", {"tooltip": "init Latents to use for video2video"} ),
                 "denoise_strength": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01}),
                 "positive_keyframes": ("LIST", {"tooltip": "List of positive CONDITIONING for keyframes"}),
@@ -584,6 +589,10 @@ class FramePackSampler:
         #find the two closest keyframes
         preKey = None
         postKey = None
+        if currentIndex<interpolationList[0][0]:
+            return interpolationList[0][1], interpolationList[0][2]
+        if currentIndex>interpolationList[-1][0]:
+            return interpolationList[-1][1], interpolationList[-1][2]
         for i in range(len(interpolationList)):
             if interpolationList[i][0] == currentIndex:
                 return interpolationList[i][1], interpolationList[i][2]
@@ -591,6 +600,7 @@ class FramePackSampler:
                 postKey = interpolationList[i]
                 break
             preKey = interpolationList[i]
+
         if preKey is None or postKey is None:
             raise ValueError("preKey or postKey is None")
         #interpolate
@@ -613,12 +623,16 @@ class FramePackSampler:
                 start_latent=None, initial_samples=None,
                 end_image_embeds=None, start_embed_strength=1.0, end_embed_strength=1.0,
                 keyframes=None, end_latent=None, denoise_strength=1.0,
-                keyframe_indices=None,keyframes_embeds=None,keyframes_embed_strengths=None,
+                keyframe_seconds=None,keyframes_embeds=None,keyframes_embed_strengths=None,
                 positive_keyframes=None, positive_keyframe_indices=None, keyframe_weight=2.0):
-        total_latent_sections = (total_second_length * 30) / (latent_window_size * 4)
-        total_latent_sections = int(max(round(total_latent_sections), 1))
+
+        total_latent_sections =calcTotalLatentSections(total_second_length,latent_window_size )
+        section_length = total_second_length / total_latent_sections
         print("total_latent_sections: ", total_latent_sections)
-        force_keyframe = False
+        keyframe_indices=[]
+        for keyframe_second in keyframe_seconds:
+            keyframe_indices.append(int(keyframe_second/section_length))
+
 
         transformer = model["transformer"]
         base_dtype = model["dtype"]
@@ -850,13 +864,6 @@ class FramePackSampler:
                     callback=callback,
                 )
 
-            # キーフレーム強制オプションが有効な場合、current_keyframe（weightなし）で上書き
-            # うまく前後がつながらないので蓋してます
-            if force_keyframe and (keyframes is not None and keyframe_indices is not None):
-                if section_no in keyframe_indices:
-                    print(f"[FramePackSampler] section {section_no}: blend first frame with keyframe (no weight, 50%)")
-                    generated_latents[:, :, 0:1, :, :] = current_keyframe.to(generated_latents)
-
             if is_last_section:
                 generated_latents = torch.cat([start_latent.to(generated_latents), generated_latents], dim=2)
 
@@ -887,6 +894,7 @@ class TimestampPromptParser:
             },
             "optional": {
                 "total_second_length": ("FLOAT", {"default": 12.0, "min": 1.0, "max": 120.0, "step": 0.1, "tooltip": "動画全体の長さ（秒）。未指定時は12秒 or timestamp最大値"}),
+                "latent_window_size": ("INT", {"default": 9, "min": 1, "max": 33, "step": 1, "tooltip": "The size of the latent window to use for sampling."}),
                 "weight": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 10.0, "step": 0.01, "tooltip": "Prompt weight (applied to all prompts)"}),
             }
         }
@@ -916,14 +924,14 @@ class TimestampPromptParser:
         "If you use 's' instead of 'sec', it is interpreted as section index (not seconds)."
     )
 
-    def parse(self, text, clip, total_second_length=12.0, weight=1.0):
+    def parse(self, text, clip, total_second_length=12.0,latent_window_size=9.0, weight=1.0):
         # timestamp promptのパース
         # 'sec'（秒）と's'（section index）両対応
         pattern = r'\[(?:(-)?(\d+\.?\d*)(sec|s))?(?:-(?:(\d+\.?\d*)(sec|s))?)?:\s*([^\]]+)\]'
         matches = re.findall(pattern, text)
         timestamp_prompts = []
         max_time = 0.0
-        section_length = 1.2  # 秒
+        section_length = total_second_length/calcTotalLatentSections(total_second_length,latent_window_size)  # 秒
         for minus, start, start_unit, end, end_unit, desc in matches:
             # 区間をsection indexで管理
             if start_unit == 's' or end_unit == 's':
