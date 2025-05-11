@@ -630,7 +630,8 @@ class FramePackSampler:
             dp=postKey[3]/(postKey[3]+preKey[3])
             intp=0
             latentIdx=postIndex
-            if p>dp:
+            #never use end latent as start
+            if p>dp or postIndex==len(interpolationList)-1:
                 intp=1
                 latentIdx=preIndex
             nkey=postKey[1]*(1-intp)+preKey[1]*(intp)
