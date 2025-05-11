@@ -557,9 +557,9 @@ class FramePackSampler:
                 maxStrengthIndex=i
         if maxStrength==0:
             for stuff in orderedStuffs:
-                keys.append((stuff[0], stuff[1], stuff[3]))
+                keys.append((stuff[0], stuff[1], stuff[3],stuff[2]))
         else:
-            preKey = (orderedStuffs[maxStrengthIndex][0], orderedStuffs[maxStrengthIndex][1], orderedStuffs[maxStrengthIndex][3])
+            preKey = (orderedStuffs[maxStrengthIndex][0], orderedStuffs[maxStrengthIndex][1], orderedStuffs[maxStrengthIndex][3], orderedStuffs[maxStrengthIndex][2])
             keys.append(preKey)
             #forward
             for i in range(maxStrengthIndex+1,len(orderedStuffs)):
@@ -572,7 +572,7 @@ class FramePackSampler:
                 latent=stuff[1]
                 if mix_latent:
                     latent=latent*(p)+preKey[1]*(1-p)
-                nkey=(stuff[0], latent,hidden_state)
+                nkey=(stuff[0], latent,hidden_state,stuff[2])
                 keys.append(nkey)
                 preKey=nkey
             #backward
@@ -587,10 +587,14 @@ class FramePackSampler:
                 latent = stuff[1]
                 if mix_latent:
                     latent = latent * (p) + preKey[1] * (1 - p)
-                nkey=(stuff[0], latent,hidden_state)
+                nkey=(stuff[0], latent,hidden_state,stuff[2])
                 keys.append(nkey)
                 preKey=nkey
         sortedkeys=list(sorted(keys, key=lambda x: x[0]))
+        if mix_latent:
+            #never mix start and end
+            sortedkeys[0]=(sortedkeys[0][0],orderedStuffs[0][1],sortedkeys[0][2],sortedkeys[0][3])
+            sortedkeys[-1]=(sortedkeys[-1][0],orderedStuffs[-1][1],sortedkeys[-1][2],sortedkeys[-1][3])
         return sortedkeys
     def getInterpolation(self, interpolationList, currentIndex,mix_latent):
         #find the two closest keyframes
@@ -601,12 +605,12 @@ class FramePackSampler:
         #the start frame
         currentIndex=currentIndex/(interpolationList[-1][0]+1)*(interpolationList[-1][0])
         if currentIndex<interpolationList[0][0]:
-            return interpolationList[0][1], interpolationList[0][2],0
+            return interpolationList[0][1], interpolationList[0][2],0,0
         if currentIndex>interpolationList[-1][0]:
-            return interpolationList[-1][1], interpolationList[-1][2],len(interpolationList)-1
+            return interpolationList[-1][1], interpolationList[-1][2],len(interpolationList)-1,len(interpolationList)-1
         for i in range(len(interpolationList)):
             if interpolationList[i][0] == currentIndex:
-                return interpolationList[i][1], interpolationList[i][2], i
+                return interpolationList[i][1], interpolationList[i][2], i,i
             if interpolationList[i][0] > currentIndex:
                 postKey = interpolationList[i]
                 postIndex=i
@@ -619,16 +623,22 @@ class FramePackSampler:
         #interpolate
         p=(postKey[0]-currentIndex)/(postKey[0]-preKey[0])
         index=postIndex*(1-p)+preIndex*(p)
+        latentIdx=index
         if mix_latent:
             nkey = postKey[1] * (1-p) + preKey[1] * (p)
         else:
-            intp=round(p)
+            dp=postKey[3]/(postKey[3]+preKey[3])
+            intp=0
+            latentIdx=postIndex
+            if p>dp:
+                intp=1
+                latentIdx=preIndex
             nkey=postKey[1]*(1-intp)+preKey[1]*(intp)
         if postKey[2] is None or preKey[2] is None:
             nkey2=None
         else:
             nkey2=postKey[2]*(1-p)+preKey[2]*(p)
-        return nkey, nkey2,index
+        return nkey, nkey2,index,latentIdx
 
 
 
@@ -781,8 +791,8 @@ class FramePackSampler:
             # --- キーフレーム選択・weightロジック（先頭区間の特別扱いを追加） ---
             total_sections = len(latent_paddings)
             forward_section_no = total_sections - 1 - section_no
-            current_keyframe,image_encoder_last_hidden_state,userIndex=self.getInterpolation(interpolateList, forward_section_no,mix_latent)
-            print(f"Interpolation: {userIndex} interpolateList:{len(interpolateList)} forward_section_no:{forward_section_no} total_sections:{len(latent_paddings)}")
+            current_keyframe,image_encoder_last_hidden_state,userIndex,latent_userIndex=self.getInterpolation(interpolateList, forward_section_no,mix_latent)
+            print(f"Interpolation: {userIndex} latentIndex: {latent_userIndex} interpolateList:{len(interpolateList)} forward_section_no:{forward_section_no} total_sections:{len(latent_paddings)}")
             clean_latents_pre=current_keyframe.to(history_latents)
             clean_latents_post, clean_latents_2x, clean_latents_4x = history_latents[:, :, :1 + 2 + 16, :, :].split([1, 2, 16], dim=2)
             clean_latents = torch.cat([clean_latents_pre, clean_latents_post], dim=2)
