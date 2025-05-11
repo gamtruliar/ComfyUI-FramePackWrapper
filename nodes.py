@@ -527,7 +527,7 @@ class FramePackSampler:
                 "denoise_strength": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01}),
                 "positive_keyframes": ("LIST", {"tooltip": "List of positive CONDITIONING for keyframes"}),
                 "positive_keyframe_indices": ("LIST", {"tooltip": "Section indices for each positive_keyframe"}),
-                "mix_latent": ("BOOLEAN", {"default": True, "tooltip": "interpolate latents between keyframes"}),
+                "mix_latent": ("BOOLEAN", {"default": False, "tooltip": "interpolate latents between keyframes"}),
             }
         }
     #end_image_embeds,embed_interpolation,start_embed_strength conflict with keyframes
@@ -538,7 +538,8 @@ class FramePackSampler:
 
     def calcInterpolationList(self, start_latent, start_embed_strength,start_image_encoder_last_hidden_state,
                           end_indices,end_latent,end_embed_strength,end_image_encoder_last_hidden_state,
-                          keyframe_indices,keyframes,keyframes_embed_strengths,keyframes_image_encoder_last_hidden_state):
+                          keyframe_indices,keyframes,keyframes_embed_strengths,keyframes_image_encoder_last_hidden_state,
+                              mix_latent):
         #from max strength to mix
         orderedStuffs=[]
         orderedStuffs.append((0, start_latent, start_embed_strength, start_image_encoder_last_hidden_state))
@@ -568,7 +569,10 @@ class FramePackSampler:
                 hidden_state=None
                 if stuff[3] is not None:
                     hidden_state=stuff[3]*(p)+preKey[2]*(1-p)
-                nkey=(stuff[0], stuff[1]*(p)+preKey[1]*(1-p),hidden_state)
+                latent=stuff[1]
+                if mix_latent:
+                    latent=latent*(p)+preKey[1]*(1-p)
+                nkey=(stuff[0], latent,hidden_state)
                 keys.append(nkey)
                 preKey=nkey
             #backward
@@ -580,7 +584,10 @@ class FramePackSampler:
                 hidden_state = None
                 if stuff[3] is not None:
                     hidden_state = stuff[3] * (p) + preKey[2] * (1 - p)
-                nkey=(stuff[0], stuff[1]*(p)+preKey[1]*(1-p),hidden_state)
+                latent = stuff[1]
+                if mix_latent:
+                    latent = latent * (p) + preKey[1] * (1 - p)
+                nkey=(stuff[0], latent,hidden_state)
                 keys.append(nkey)
                 preKey=nkey
         sortedkeys=list(sorted(keys, key=lambda x: x[0]))
@@ -754,7 +761,8 @@ class FramePackSampler:
 
         interpolateList=self.calcInterpolationList(start_latent, start_embed_strength, start_image_encoder_last_hidden_state,
                           total_latent_sections-1, end_latent, end_embed_strength, end_image_encoder_last_hidden_state,
-                          keyframe_indices, keyframes, keyframes_embed_strengths, keyframes_image_encoder_last_hidden_state)
+                          keyframe_indices, keyframes, keyframes_embed_strengths, keyframes_image_encoder_last_hidden_state,
+                                                   mix_latent)
         for section_no, latent_padding in enumerate(latent_paddings):
             print(f"latent_padding: {latent_padding}")
             print(f"section no: {section_no}")
