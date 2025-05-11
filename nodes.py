@@ -615,7 +615,7 @@ class FramePackSampler:
         if mix_latent:
             nkey = postKey[1] * (1-p) + preKey[1] * (p)
         else:
-            intp=int(p)
+            intp=round(p)
             nkey=postKey[1]*(1-intp)+preKey[1]*(intp)
         if postKey[2] is None or preKey[2] is None:
             nkey2=None
