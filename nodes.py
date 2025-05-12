@@ -964,7 +964,7 @@ class TimestampPromptParser:
     def parse(self, text, clip, total_second_length=12.0,latent_window_size=9.0, weight=1.0):
         # timestamp promptのパース
         # 'sec'（秒）と's'（section index）両対応
-        pattern = r'\[(?:(-)?(\d+\.?\d*)(sec|s))?(?:-(?:(\d+\.?\d*)(sec|s))?)?:\s*([^\]]+)\]'
+        pattern = r'\[(?:(-)?(\d+\.?\d*)(sec|s|\%))?(?:-(?:(\d+\.?\d*)(sec|s|\%))?)?:\s*([^\]]+)\]'
         matches = re.findall(pattern, text)
         timestamp_prompts = []
         max_time = 0.0
@@ -990,6 +990,38 @@ class TimestampPromptParser:
                 else:
                     section_start = to_section(start) if start else 0
                     section_end = section_start
+            elif start_unit == '%' or end_unit == '%':
+                # %指定（sec）→section indexに変換
+                def to_sec(val):
+                    return float(val)
+
+                if minus == '-':
+                    p_start = 0.0
+                    p_end = to_sec(start)
+                elif start and end:
+                    p_start = to_sec(start)
+                    p_end = to_sec(end)
+                elif start and not end:
+                    p_start = to_sec(start)
+                    p_end = None
+                elif end and not start:
+                    p_start = 0.0
+                    p_end = to_sec(end)
+                else:
+                    p_start = to_sec(start) if start else 0.0
+                    p_end = p_start
+
+                sec_start=total_second_length*p_start/100
+                sec_end=None
+                if p_end is not None:
+                    sec_end=total_second_length*p_end/100
+
+                section_start = int(sec_start // section_length)
+                section_end = int(sec_end // section_length) if sec_end is not None else None
+                if sec_end is not None:
+                    max_time = max(max_time, sec_end)
+                else:
+                    max_time = max(max_time, sec_start)
             else:
                 # 秒指定（sec）→section indexに変換
                 def to_sec(val):
