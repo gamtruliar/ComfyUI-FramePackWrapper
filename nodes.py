@@ -842,9 +842,11 @@ class FramePackSampler:
                 forward_section_no = total_sections - 1 - section_no
                 kf_idx = None
                 for i, idx in enumerate(positive_keyframe_indices):
-                    if forward_section_no <= idx:
-                        kf_idx = i
+                    if forward_section_no < idx:
+                        kf_idx = i-1
                         break
+                if kf_idx is not None and kf_idx<0:
+                    kf_idx=0
                 if kf_idx is not None:
                     section_positive = positive_keyframes[kf_idx]
                     use_keyframe_positive = True
@@ -1092,7 +1094,7 @@ class TimestampPromptParser:
                         cond[0][0] = cond[0][0] * weight
                 keyframes.append(cond)
                 indices.append(i)
-                keyframe_prompts.append(prompt)
+                keyframe_prompts.append(f"[{i}:"+prompt+"]")
                 last_prompt = prompt
         keyframe_prompts_str = ",\n".join(keyframe_prompts)
         return keyframes, indices, keyframe_prompts_str
