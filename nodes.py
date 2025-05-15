@@ -659,8 +659,9 @@ class FramePackSampler:
         section_length = total_second_length / total_latent_sections
         print("total_latent_sections: ", total_latent_sections)
         keyframe_indices=[]
-        for keyframe_second in keyframe_seconds:
-            keyframe_indices.append(keyframe_second/section_length)
+        if keyframe_seconds is not None:
+            for keyframe_second in keyframe_seconds:
+                keyframe_indices.append(keyframe_second/section_length)
 
 
         transformer = model["transformer"]
